@@ -24,20 +24,13 @@ jobs:
         if: steps.check_tags.outputs.result == 'true'
         run: echo "Issue has the required tags. Running workflow..."
 
-
       - name: Parse issue
         id: parse
         uses: onmax/issue-form-parser@v1.5
         with:
           issue_number: ${{ github.event.issue.number }}
 
-      - name: Show parsed payload data
-        run: |
-          # Using the character `'` to prevent all characters enclosed within
-          # them from being treated as special characters (e.g. $ or `)
-          echo '${{ steps.parse.outputs.payload }}'
-
-      - name: Extract "stk_project_name" from issue body
+      - name: Extract "outputs" from issue body
         id: extract_app_name
         uses: actions/github-script@v6
         with:
@@ -53,69 +46,39 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Output App Infra repository URL
-        run: echo "Repository created at ${{ steps.extract_app_name.outputs.stk_project_name }}"
-
-      - uses: f1lander/create-repository-action@v1.0.2
-        id: repo
-        with:
-          name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
-          private: false
-          access-token: '${{ secrets.GHP_TOKEN }}'
-
-      - name: Creating GitHub Organization Repository
+      - name: Create Repo App
         uses: repo-ctrl/create-repo-action@main 
-        id: create-repo
+        id: create-repo-app
         with:
           repo-name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
           org-admin-token: '${{ secrets.GHP_TOKEN }}'
 
       - name: Log URL to the repo
-        run: echo "The new repo is ${{ steps.create-repo.outputs.repo-url }}"
+        run: echo "The new repo is ${{ steps.create-repo-app.outputs.repo-url }}"
 
-      - name: Create a new repository app
-        id: create_repo
-        uses: actions/github-script@v6
+      - name: Create Repo App Infra
+        uses: repo-ctrl/create-repo-action@main 
+        id: create-repo-app-infra
         with:
-          script: |
-            const repoName = 'app_${{ steps.extract_app_name.outputs.stk_project_name }}';
-            const response = await github.repos.createForAuthenticatedUser({
-              name: repoName,
-              private: true
-            });
-            core.setOutput('repo_url', response.data.html_url);
-        env:
-          GITHUB_TOKEN: ${{ secrets.GHP_TOKEN }}
+          repo-name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
+          org-admin-token: '${{ secrets.GHP_TOKEN }}'
 
-      - name: Output App repository URL
-        run: echo "Repository created at ${{ steps.create_repo.outputs.repo_url }}"
+      - name: Log URL to the repo
+        run: echo "The new repo is ${{ steps.create-repo-app-infra.outputs.repo-url }}"
 
-      - name: Create a new repository app infra
-        id: create_repo_infra
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const repoName = 'infra_${{ steps.extract_app_name.outputs.stk_project_name }}';
-            const response = await github.repos.createForAuthenticatedUser({
-              name: repoName,
-              private: true
-            });
-            core.setOutput('repo_url_infra', response.data.html_url);
-        env:
-          GITHUB_TOKEN: ${{ secrets.GHP_TOKEN }}
-
-      - name: Output App Infra repository URL
-        run: echo "Repository created at ${{ steps.create_repo.outputs.repo_url }}"
+      - name: Set timestamp
+        run: |
+          echo "TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> "$GITHUB_ENV"
 
       - name: Stack Spot Workflow
         uses: stack-spot/workflow-github-action@main
         with:
-          execution-id: "${{ github.event.inputs.execution-id }}"
+          execution-id: "${{ steps.extract_app_name.outputs.execution-id }}"
           client-id: "${{ secrets.CLIENT_ID }}"
           client-secret: "${{ secrets.CLIENT_SECRET }}"
           realm: "${{ vars.REALM }}"
-          debug: "${{ github.event.inputs.debug }}"
-          repository-url: "${{ steps.create_repo.outputs.repo_url }}"
+          debug: true
+          repository-url: "${{ steps.create-repo-app-infra.outputs.repo-url }}"
           origin-branch: develop
           feature-branch: my-custom-feature-branch-${{ env.TIMESTAMP }}
-          extra-inputs: '{"repository-url-infra": "${{ steps.create_repo_infra.outputs.repo_url_infra }}"}'
+          extra-inputs: '{"repository-url-infra": "${{ steps.create-repo-app-infra.outputs.repo-url }}"}'
