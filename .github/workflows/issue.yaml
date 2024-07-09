@@ -60,7 +60,7 @@ jobs:
         uses: repo-ctrl/create-repo-action@main 
         id: create-repo-app-infra
         with:
-          repo-name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
+          repo-name: 'infra_${{ steps.extract_app_name.outputs.stk_project_name }}'
           org-admin-token: '${{ secrets.GHP_TOKEN }}'
 
       - name: Log URL to the repo
