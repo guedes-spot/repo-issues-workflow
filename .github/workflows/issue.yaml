@@ -61,14 +61,14 @@ jobs:
         with:
           name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
           private: false
-          access-token: '${{ secrets.GITHUB_TOKEN }}'
+          access-token: '${{ secrets.GHP_TOKEN }}'
 
       - name: Creating GitHub Organization Repository
         uses: repo-ctrl/create-repo-action@main 
         id: create-repo
         with:
           repo-name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
-          org-admin-token: '${{ secrets.GITHUB_TOKEN }}'
+          org-admin-token: '${{ secrets.GHP_TOKEN }}'
 
       - name: Log URL to the repo
         run: echo "The new repo is ${{ steps.create-repo.outputs.repo-url }}"
@@ -85,7 +85,7 @@ jobs:
             });
             core.setOutput('repo_url', response.data.html_url);
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GHP_TOKEN }}
 
       - name: Output App repository URL
         run: echo "Repository created at ${{ steps.create_repo.outputs.repo_url }}"
@@ -102,7 +102,7 @@ jobs:
             });
             core.setOutput('repo_url_infra', response.data.html_url);
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GHP_TOKEN }}
 
       - name: Output App Infra repository URL
         run: echo "Repository created at ${{ steps.create_repo.outputs.repo_url }}"
