@@ -1,0 +1,123 @@
+name: Issue Tagged Workflow
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  check-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if issue has required tags
+        id: check_tags
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const requiredTags = ['gitops', 'stackspot'];
+            const issueLabels = context.payload.issue.labels.map(label => label.name);
+            const hasRequiredTags = requiredTags.every(tag => issueLabels.includes(tag));
+            return hasRequiredTags;
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run workflow if tags are present
+        if: steps.check_tags.outputs.result == 'true'
+        run: echo "Issue has the required tags. Running workflow..."
+
+
+      - name: Parse issue
+        id: parse
+        uses: onmax/issue-form-parser@v1.5
+        with:
+          issue_number: ${{ github.event.issue.number }}
+
+      - name: Show parsed payload data
+        run: |
+          # Using the character `'` to prevent all characters enclosed within
+          # them from being treated as special characters (e.g. $ or `)
+          echo '${{ steps.parse.outputs.payload }}'
+
+      - name: Extract "stk_project_name" from issue body
+        id: extract_app_name
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueBody = JSON.parse('${{ steps.parse.outputs.payload }}')
+            for (const key in issueBody) {
+              if (issueBody.hasOwnProperty(key)) {
+                let key_slug = key.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '_').replace(/^-+|-+$/g, ''); 
+                console.log(`${key_slug}: ${issueBody[key]}`);
+                core.setOutput(key_slug, `${issueBody[key]}`);
+              }
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output App Infra repository URL
+        run: echo "Repository created at ${{ steps.extract_app_name.outputs.stk_project_name }}"
+
+      - uses: f1lander/create-repository-action@v1.0.2
+        id: repo
+        with:
+          name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
+          org: 'fabianofernandeszup'
+          private: false
+          access-token: '${{ secrets.GHP_TOKEN }}'
+
+      - name: Creating GitHub Organization Repository
+        uses: repo-ctrl/create-repo-action@main 
+        id: create-repo
+        with:
+          repo-name: 'app_${{ steps.extract_app_name.outputs.stk_project_name }}'
+          org-name: 'fabianofernandeszup'
+          org-admin-token: '${{ secrets.GHP_TOKEN }}'
+
+      - name: Log URL to the repo
+        run: echo "The new repo is ${{ steps.create-repo.outputs.repo-url }}"
+
+      - name: Create a new repository app
+        id: create_repo
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const repoName = 'app_${{ steps.extract_app_name.outputs.stk_project_name }}';
+            const response = await github.repos.createForAuthenticatedUser({
+              name: repoName,
+              private: true
+            });
+            core.setOutput('repo_url', response.data.html_url);
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHP_TOKEN }}
+
+      - name: Output App repository URL
+        run: echo "Repository created at ${{ steps.create_repo.outputs.repo_url }}"
+
+      - name: Create a new repository app infra
+        id: create_repo_infra
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const repoName = 'infra_${{ steps.extract_app_name.outputs.stk_project_name }}';
+            const response = await github.repos.createForAuthenticatedUser({
+              name: repoName,
+              private: true
+            });
+            core.setOutput('repo_url_infra', response.data.html_url);
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHP_TOKEN }}
+
+      - name: Output App Infra repository URL
+        run: echo "Repository created at ${{ steps.create_repo.outputs.repo_url }}"
+
+      - name: Stack Spot Workflow
+        uses: stack-spot/workflow-github-action@main
+        with:
+          execution-id: "${{ github.event.inputs.execution-id }}"
+          client-id: "${{ secrets.CLIENT_ID }}"
+          client-secret: "${{ secrets.CLIENT_SECRET }}"
+          realm: "${{ vars.REALM }}"
+          debug: "${{ github.event.inputs.debug }}"
+          repository-url: "${{ steps.create_repo.outputs.repo_url }}"
+          origin-branch: develop
+          feature-branch: my-custom-feature-branch-${{ env.TIMESTAMP }}
+          extra-inputs: '{"repository-url-infra": "${{ steps.create_repo_infra.outputs.repo_url_infra }}"}'
